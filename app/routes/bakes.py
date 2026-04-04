@@ -16,3 +16,4 @@ def log_fold(bake_id: str, fold_type: str, fold_time: str = None):
     bake = add_fold(bake, fold_type, fold_time)
     save_bake(bake)
     return bake_to_dict(bake)
+    

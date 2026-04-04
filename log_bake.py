@@ -46,7 +46,7 @@ bake = add_bake_stage(bake, BakeStage(
 ))
 
 # 8. Score the outcome
-bake = set_outcome(bake, oven_spring=4, crumb=3, crust=5, flavour=4, overall=4,
+bake = set_outcome(bake, oven_spring=4, crumb=3, crust=5, flavour=4,
                    notes="Good crust, slightly dense crumb. Extend bulk next time.")
 
 # 9. Inspect the JSON

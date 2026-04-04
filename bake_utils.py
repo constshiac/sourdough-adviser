@@ -253,12 +253,24 @@ class BakeStage:
 @dataclass
 class BakeOutcome:
     """Baking outcome scores (1-5) and notes."""
-    oven_spring: int = 0
-    crumb: int = 0
-    crust: int = 0
-    flavour: int = 0
-    overall: int = 0
+    oven_spring: Optional[int] = None
+    crumb: Optional[int] = None
+    crust: Optional[int] = None
+    flavour: Optional[int] = None
+    overall: Optional[int] = None
     notes: Optional[str] = None
+
+    def __post_init__(self):
+        for field_name in ['oven_spring', 'crumb', 'crust', 'flavour', 'overall']:
+            value = getattr(self, field_name, None)
+            if value is not None and (value < 1 or value > 5):
+                raise ValueError(f"{field_name} score must be between 1 and 5, got {value}")
+        
+        if not self.overall and any([self.oven_spring, self.crumb, self.crust, self.flavour]):
+            # If overall score is missing but other scores are present, calculate average
+            scores = [s for s in [self.oven_spring, self.crumb, self.crust, self.flavour] if s is not None]
+            if scores:
+                self.overall = round(sum(scores) / len(scores))
     
 
 @dataclass
@@ -297,17 +309,19 @@ class Bake:
                 return None
 
             # Total liquid ingredients
-            liquid = sum(i.grams for i in self.ingredients if i.type == "liquid")
+            total_liquid = sum(i.grams for i in self.ingredients if i.type == "liquid")
 
             starter_water = 0
-            if self.starter and self.starter.current_hydration:
-                starter_grams = sum(i.grams for i in self.ingredients if i.type == "starter")
-                if starter_grams > 0:
-                    # Calculate water in starter: starter_flour = starter_grams / (1 + hydration%)
-                    # Then: water = starter_flour * hydration%
+            starter_grams = sum(i.grams for i in self.ingredients if i.type == "starter")
+            if starter_grams > 0:
+                if self.starter and self.starter.current_hydration:
                     starter_hydration_ratio = self.starter.current_hydration / 100
-                    starter_flour = starter_grams / (1 + starter_hydration_ratio)
-                    starter_water = starter_flour * starter_hydration_ratio
+                else:
+                    starter_hydration_ratio = 100 / 100  # Assume 100% hydration if unknown (equal parts flour and water)
+                # Calculate water in starter: starter_flour = starter_grams / (1 + hydration%)
+                # Then: water = starter_flour * hydration%
+                starter_flour = starter_grams / (1 + starter_hydration_ratio)
+                starter_water = starter_flour * starter_hydration_ratio
             return round(((total_liquid + starter_water) / self.total_flour) * 100, 1)
         except (ValueError, ZeroDivisionError):
             return None

@@ -228,11 +228,11 @@ def add_bake_stage(
 
 def set_outcome(
     bake: Bake,
-    oven_spring: int = 0,
-    crumb: int = 0,
-    crust: int = 0,
-    flavour: int = 0,
-    overall: int = 0,
+    oven_spring: Optional[int] = None,
+    crumb: Optional[int] = None,
+    crust: Optional[int] = None,
+    flavour: Optional[int] = None,
+    overall: Optional[int] = None,
     notes: Optional[str] = None
 ) -> Bake:
     """Record the scored outcome for a completed bake."""
