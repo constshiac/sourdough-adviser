@@ -1,7 +1,7 @@
 import anthropic
 import json
 from dotenv import load_dotenv
-from bake_utils import Bake
+from app.utils.bake_utils import Bake
 from bake_storage import bake_to_dict
 
 load_dotenv() # Pick up ANTHROPIC_API_KEY from .env
@@ -10,7 +10,7 @@ client = anthropic.Anthropic()
 def get_bake_advice(bake: Bake) -> str:
     bake_dict = bake_to_dict(bake)
     message = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=1024,
         system="""You are an expert sourdough baker and coach. 
 You will be given a structured log of a sourdough bake in JSON format.

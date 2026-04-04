@@ -8,7 +8,7 @@ No file I/O here — this layer maps cleanly to FastAPI route logic in Phase 2.
 from typing import Optional, Literal
 from dataclasses import asdict
 
-from bake_utils import (
+from app.utils.bake_utils import (
     Bake, Stage, BakeStage, Fold, Proof, Ingredient, BakeOutcome,
     group_ingredients_by_stage,
     get_timestamp, time_since

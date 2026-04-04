@@ -286,6 +286,11 @@ class Bake:
     bake_stage: Optional[BakeStage] = None
     outcome: BakeOutcome = field(default_factory=BakeOutcome)
 
+    def __post_init__(self):
+        if not self.recipe_label:
+            date_obj = datetime.fromisoformat(self.start_time)
+            self.recipe_label = f"Bake {date_obj.strftime('%d-%m-%Y')}"
+
     @property
     def total_flour(self) -> Optional[float]:
         """Calculate total flour from ingredients."""

@@ -1,16 +1,19 @@
 import anthropic
 import json
-from dotenv import load_dotenv
-from bake_utils import Bake
-from bake_storage import bake_to_dict
+from app.utils.bake_utils import Bake
+from app.services.bake_storage import bake_to_dict
+from fastapi import APIRouter
 
-load_dotenv() # Pick up ANTHROPIC_API_KEY from .env
+from app.core.config import ANTHROPIC_API_KEY
+
 client = anthropic.Anthropic()
+
+router = APIRouter()
 
 def get_bake_advice(bake: Bake) -> str:
     bake_dict = bake_to_dict(bake)
     message = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=1024,
         system="""You are an expert sourdough baker and coach. 
 You will be given a structured log of a sourdough bake in JSON format.
@@ -24,3 +27,10 @@ Give specific, actionable feedback — what went well, what to adjust next time.
         ]
     )
     return message.content[0].text
+
+
+@router.get("/bakes/{bake_id}/advice")
+def get_advice(bake_id: str):
+    bake = load_bake(bake_id)
+    advice = get_bake_advice(bake)
+    return {"bake_id": bake_id, "advice": advice}
