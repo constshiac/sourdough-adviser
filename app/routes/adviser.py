@@ -11,7 +11,7 @@ from app.routes.bakes import _load_or_404, _dict_to_bake
 
 router = APIRouter()
 
-_DEV_USER_ID = "local"
+_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 @router.post("/{bake_id}", response_model=AdviceResponse, summary="Get AI advice for a bake")

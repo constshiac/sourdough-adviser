@@ -24,7 +24,7 @@ from app.models.bake import (
 router = APIRouter()
  
 # Placeholder until JWT auth is wired up in Phase 2
-_DEV_USER_ID = "local"
+_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 

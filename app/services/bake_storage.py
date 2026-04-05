@@ -11,10 +11,14 @@ import os
 from dataclasses import asdict
 from typing import Optional
 
+from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 from app.utils.bake_utils import Bake
 
 LOCAL_FILE = "bake_history.json"
-_USE_LOCAL = not (os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_KEY"))
+_USE_LOCAL = not (SUPABASE_URL and SUPABASE_SERVICE_KEY)
+print(f"[storage] Using {'local JSON' if _USE_LOCAL else 'Supabase'}")
+
+_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 # ------------------------------------------------
@@ -30,7 +34,6 @@ def bake_to_dict(bake: Bake) -> dict:
 
 def _get_supabase():
     from supabase import create_client
-    from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
@@ -52,7 +55,7 @@ def _save_local(history: list[dict]) -> None:
 # ------------------------------------------------
 # PUBLIC API
 
-def save_bake(bake: Bake, user_id: str = "local") -> None:
+def save_bake(bake: Bake, user_id: str = _DEV_USER_ID) -> None:
     """Upsert a bake by ID."""
     bake_dict = bake_to_dict(bake)
 
@@ -73,7 +76,7 @@ def save_bake(bake: Bake, user_id: str = "local") -> None:
         }).execute()
 
 
-def load_bake(bake_id: str, user_id: str = "local") -> Optional[dict]:
+def load_bake(bake_id: str, user_id: str = _DEV_USER_ID) -> Optional[dict]:
     """Load a single bake by ID. Returns None if not found."""
     if _USE_LOCAL:
         return next((b for b in _load_local() if b.get("id") == bake_id), None)
@@ -87,7 +90,7 @@ def load_bake(bake_id: str, user_id: str = "local") -> Optional[dict]:
         return result.data["data"] if result.data else None
 
 
-def list_bakes(user_id: str = "local") -> list[dict]:
+def list_bakes(user_id: str = _DEV_USER_ID) -> list[dict]:
     """Return all bakes, most recent first."""
     if _USE_LOCAL:
         return list(reversed(_load_local()))
@@ -100,7 +103,7 @@ def list_bakes(user_id: str = "local") -> list[dict]:
         return result.data
 
 
-def delete_bake(bake_id: str, user_id: str = "local") -> bool:
+def delete_bake(bake_id: str, user_id: str = _DEV_USER_ID) -> bool:
     """Delete a bake by ID. Returns True if deleted, False if not found."""
     if _USE_LOCAL:
         history = _load_local()
