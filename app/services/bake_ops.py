@@ -6,7 +6,6 @@ No file I/O here — this layer maps cleanly to FastAPI route logic in Phase 2.
 """
 
 from typing import Optional, Literal
-from dataclasses import asdict
 
 from app.utils.bake_utils import (
     Bake, Stage, BakeStage, Fold, Proof, Ingredient, BakeOutcome,
@@ -14,8 +13,9 @@ from app.utils.bake_utils import (
     get_timestamp, time_since
 )
 
-ROOM_TEMPERATURE = 22.0  # Default room temperature in °C if not specified in Bake
-FRIDGE_TEMPERATURE = 4.0   # Default fridge temperature in °C for cold proofs
+ROOM_TEMPERATURE = 22.0  # Default room temperature in °C
+FRIDGE_TEMPERATURE = 4.0  # Default fridge temperature in °C for cold proofs
+
 
 # ------------------------------------------------
 # STAGE LOOKUPS
@@ -49,6 +49,7 @@ def add_ingredients(bake: Bake, ingredients: list[Ingredient]) -> Bake:
     and attach everything to the bake.
     """
     bake.ingredients = ingredients
+    bake.adjust_start_time()  # Set bake start_time to first ingredient
     bake.calculate_ingredient_percentages()
     bake.stages = group_ingredients_by_stage(ingredients)
     return bake
@@ -68,6 +69,11 @@ def add_fold(
     Previous timestamp is taken from: last fold > last ingredient > stage start.
     """
     stage = _require_stage(bake, stage_name)
+
+    # Check if a fold with this timestamp already exists and delete it
+    existing_fold = next((f for f in stage.folds if f.timestamp[:16] == fold_time[:16]), None)
+    if existing_fold:
+        stage.folds.remove(existing_fold)
 
     if stage.folds:
         previous_timestamp = stage.folds[-1].timestamp
@@ -106,19 +112,21 @@ def add_proof(
     stage = _require_stage(bake, "final proof")
 
     if not stage.proofs:
-        # First proof anchors to stage start
         proof_start = stage.start_time
     else:
         prev = stage.proofs[-1]
         if prev.end_time is None:
-            # Close the previous proof at the start of this one
             close_at = get_timestamp(override=start_time)
             if close_at < prev.start_time:
                 raise ValueError("New proof start_time cannot be before the previous proof's start_time")
             prev.close(close_at)
         proof_start = get_timestamp(override=start_time)
 
-    # Assume temperature
+    # Check if a proof with this start_time already exists and delete it
+    existing_proof = next((p for p in stage.proofs if p.start_time[:16] == proof_start[:16]), None)
+    if existing_proof:
+        stage.proofs.remove(existing_proof)
+
     if not temperature:
         if proof_type == "cold":
             temperature = FRIDGE_TEMPERATURE
@@ -135,14 +143,8 @@ def add_proof(
     return bake
 
 
-def close_proof(
-    bake: Bake,
-    end_time: Optional[str] = None
-) -> Bake:
-    """
-    Close the currently open proof on the 'final proof' stage.
-    Use this when ending the final proof before moving to the oven.
-    """
+def close_proof(bake: Bake, end_time: Optional[str] = None) -> Bake:
+    """Close the currently open proof on the 'final proof' stage."""
     stage = _require_stage(bake, "final proof")
     if not stage.proofs:
         raise ValueError("No proofs found to close")
@@ -163,30 +165,29 @@ def add_handling_stage(
     notes: Optional[str] = None
 ) -> Bake:
     """
-    Add a handling stage (pre-shape or final shape) and manage the
-    lifecycle of adjacent stages automatically.
+    Add a handling stage and manage adjacent stage lifecycles automatically.
 
-    pre-shape:
-        - Closes bulk fermentation
-        - Creates pre-shape stage
-        - Opens bench rest
-
-    final shape:
-        - Closes bench rest (if present) or bulk fermentation
-        - Creates final shape stage
-        - Opens final proof
+    pre-shape:  closes bulk fermentation, opens bench rest
+    final shape: closes bench rest (or bulk), opens final proof
     """
     timestamp = get_timestamp(override=start_time)
+
+    existing_handling = {h.name: h.start_time for h in bake.stages if h.name in ["pre-shape", "final shape"]}
+    exists = stage_name in existing_handling and existing_handling[stage_name] == timestamp
+
+    mixing = get_stage(bake, "mixing")
+    if mixing:
+        mixing.close(timestamp)
 
     if stage_name == "pre-shape":
         bulk = get_stage(bake, "bulk fermentation")
         if bulk:
             bulk.close(timestamp)
-        bake.stages.append(Stage(name="pre-shape", start_time=timestamp, notes=notes))
-        bake.stages.append(Stage(name="bench rest", start_time=timestamp))
+        if not exists:
+            bake.stages.append(Stage(name="pre-shape", start_time=timestamp, notes=notes))
+            bake.stages.append(Stage(name="bench rest", start_time=timestamp))
 
     elif stage_name == "final shape":
-        # Close bench rest if it exists, otherwise close bulk fermentation
         bench = get_stage(bake, "bench rest")
         if bench:
             bench.close(timestamp)
@@ -194,8 +195,9 @@ def add_handling_stage(
             bulk = get_stage(bake, "bulk fermentation")
             if bulk and not bulk.end_time:
                 bulk.close(timestamp)
-        bake.stages.append(Stage(name="final shape", start_time=timestamp, notes=notes))
-        bake.stages.append(Stage(name="final proof", start_time=timestamp))
+        if not exists:
+            bake.stages.append(Stage(name="final shape", start_time=timestamp, notes=notes))
+            bake.stages.append(Stage(name="final proof", start_time=timestamp))
 
     return bake
 
@@ -203,15 +205,11 @@ def add_handling_stage(
 # ------------------------------------------------
 # OVEN / BAKE STAGE
 
-def add_bake_stage(
-    bake: Bake,
-    bake_stage: BakeStage
-) -> Bake:
+def add_bake_stage(bake: Bake, bake_stage: BakeStage) -> Bake:
     """
-    Attach a BakeStage (oven phase) to the bake.
-    Also closes any open final proof at the bake stage's start_time.
+    Attach a BakeStage to the bake.
+    Automatically closes any open final proof at the bake stage's start_time.
     """
-    # Close final proof if still open
     proof_stage = get_stage(bake, "final proof")
     if proof_stage:
         if proof_stage.end_time is None:

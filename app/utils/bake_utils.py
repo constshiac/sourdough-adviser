@@ -16,16 +16,17 @@ def _parse_duration(duration: str) -> timedelta:
 
 
 def time_since(start_time: Optional[str], end_time: Optional[str] = None) -> Optional[str]:
-    """Calculate time between to isoformat date strings."""
-    if not start_time:
+    if not start_time or not end_time:
         return None
-    end = end_time or get_timestamp()
     start_dt = datetime.fromisoformat(start_time)
-    end_dt = datetime.fromisoformat(end)
+    end_dt = datetime.fromisoformat(end_time)
     delta = end_dt - start_dt
     if delta.total_seconds() < 0:
         return None
-    return str(delta)
+    total_seconds = int(delta.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
 def end_time_from_duration(start_time: str, duration: str) -> str:
@@ -151,12 +152,16 @@ class Proof:
     duration: Optional[str] = field(default=None, init=False)
 
     def __post_init__(self):
-        self.duration = time_since(self.start_time, self.end_time)
+        if self.end_time:
+            self.duration = time_since(self.start_time, self.end_time)
 
     def close(self, end_time: Optional[str] = None) -> None:
         """Close this proof by setting end_time and recalculating duration."""
-        self.end_time = get_timestamp(override=end_time)
-        self.duration = time_since(self.start_time, self.end_time)
+        end_time = get_timestamp(override=end_time)
+        if end_time < self.start_time:
+            raise ValueError("Proof end_time cannot be before start_time")
+        self.end_time = end_time
+        self.duration = time_since(self.start_time, self.end_time) 
 
 
 @dataclass
@@ -165,22 +170,32 @@ class Stage:
     name: str
     start_time: str = field(default_factory=get_timestamp)
     end_time: Optional[str] = None
+    duration: Optional[str] = None
     ingredients: list[Ingredient] = field(default_factory=list)
     notes: Optional[str] = None
     folds: list[Fold] = field(default_factory=list)
     proofs: list[Proof] = field(default_factory=list)
 
+    def __post_init__(self):
+        # Backfill duration if end_time is already known on construction
+        if self.end_time and not self.duration:
+            self.duration = time_since(self.start_time, self.end_time)
+
     def close(self, end_time: Optional[str] = None) -> None:
-        """Close this stage by settimg end_time."""
-        self.end_time = get_timestamp(override=end_time)
+        """Close this stage by setting end_time and calculating duration."""
+        end_time = get_timestamp(override=end_time)
+        if end_time < self.start_time:
+            raise ValueError("Stage end_time cannot be before start_time")
+        self.end_time = end_time
+        self.duration = time_since(self.start_time, self.end_time)
 
 
 @dataclass
 class BakeStage:
     """Represents the oven/baking phase with optional steam and open phases."""
-    name: str
+    name: str = field(default_factory="bake")
     type: Optional[Literal["open bake", "dutch oven"]] = None
-    start_time: str = field(default_factory=get_timestamp)
+    start_time: str = Optional[str]
     end_time: Optional[str] = None
     score_time: Optional[str] = None
     duration: Optional[str] = None
@@ -190,30 +205,38 @@ class BakeStage:
     preheat_temperature: Optional[float] = None
     steam_time: Optional[str] = None
     steam_duration: Optional[str] = None
+    steam_temperature: Optional[str] = None
     open_time: Optional[str] = None
     open_duration: Optional[str] = None
     open_temperature: Optional[float] = None
 
     def __post_init__(self):
+        if not self.start_time and (self.steam_time or self.open_time):
+            self.start_time = self.steam_time or self.open_time
         self._resolve_preheat()
-        self.start_time = get_timestamp(override=self.start_time)
+        if not self.start_time:
+            self.start_time = get_timestamp(override=self.start_time)
         self.score_time = get_timestamp(override=self.score_time or self.start_time)
         self._resolve_total_duration()
         self._resolve_steam()
         self._resolve_oven_open()
 
     def _resolve_preheat(self):
-        """
-        If preheat_time + preheat_duration are both known, derive start_time.
-        If only preheat_time is known, validate it precedes start_time.
-        """
         if self.preheat_time and self.preheat_duration:
+            # Derive start_time from preheat end
             self.start_time = end_time_from_duration(self.preheat_time, self.preheat_duration)
         elif self.preheat_time and self.start_time:
+            # Both explicitly provided — validate ordering
             if self.preheat_time >= self.start_time:
                 raise ValueError(
                     f"preheat_time ({self.preheat_time}) must be before start_time ({self.start_time})"
                 )
+            else:
+                self.preheat_duration = time_since(self.preheat_time, self.start_time)
+        elif self.start_time and self.preheat_duration and not self.preheat_time:
+            # Derive preheat_time by working backwards from start_time
+            preheat_dt = datetime.fromisoformat(self.start_time) - _parse_duration(self.preheat_duration)
+            self.preheat_time = preheat_dt.isoformat()
 
     def _resolve_total_duration(self):
         """Resolve end_time and duration from each other, or from steam + open phases."""
@@ -253,11 +276,11 @@ class BakeStage:
 @dataclass
 class BakeOutcome:
     """Baking outcome scores (1-5) and notes."""
-    oven_spring: Optional[int] = None
-    crumb: Optional[int] = None
-    crust: Optional[int] = None
-    flavour: Optional[int] = None
-    overall: Optional[int] = None
+    oven_spring: Optional[float] = None
+    crumb: Optional[float] = None
+    crust: Optional[float] = None
+    flavour: Optional[float] = None
+    overall: Optional[float] = None
     notes: Optional[str] = None
 
     def __post_init__(self):
@@ -270,7 +293,7 @@ class BakeOutcome:
             # If overall score is missing but other scores are present, calculate average
             scores = [s for s in [self.oven_spring, self.crumb, self.crust, self.flavour] if s is not None]
             if scores:
-                self.overall = round(sum(scores) / len(scores))
+                self.overall = round(sum(scores) / len(scores), 1)
     
 
 @dataclass
@@ -279,6 +302,7 @@ class Bake:
     id: str = field(default_factory=generate_bake_id)
     start_time: str = field(default_factory=get_timestamp)
     end_time: Optional[str] = None
+    room_temperature: Optional[float] = None
     recipe_label: Optional[str] = None
     ingredients: list[Ingredient] = field(default_factory=list)
     starter: Optional[Starter] = None
@@ -291,10 +315,34 @@ class Bake:
             date_obj = datetime.fromisoformat(self.start_time)
             self.recipe_label = f"Bake {date_obj.strftime('%d-%m-%Y')}"
 
+    def adjust_start_time(self):
+        """Set bake start_time to the timestamp of the first ingredient."""
+        if self.ingredients:
+            first_ingredient_time = min(i.timestamp for i in self.ingredients)
+            if first_ingredient_time:
+                self.start_time = first_ingredient_time
+
+
+    def starter_percentages(self) -> tuple[Optional[float], Optional[float]]:
+        """Calculate flour and water percentages in the starter."""
+        if not self.starter or not self.starter.current_hydration:
+            hydration_ratio = 100 / 100  # Assume 100% hydration if unknown (equal parts flour and water)
+        else:
+            hydration_ratio = starter.current_hydration / 100
+        starter_grams = sum(i.grams for i in self.ingredients if i.type == "starter")
+        if starter_grams > 0:
+            starter_flour = starter_grams / (1 + hydration_ratio)
+            starter_water = starter_flour * hydration_ratio
+            return starter_flour, starter_water, starter_grams
+        return None, None, None
+
     @property
     def total_flour(self) -> Optional[float]:
         """Calculate total flour from ingredients."""
         flour_total = sum(i.grams for i in self.ingredients if i.type == "flour")
+        starter_flour, _, _ = self.starter_percentages() 
+        if starter_flour:
+            flour_total += starter_flour
         return flour_total if flour_total > 0 else None
 
     def calculate_ingredient_percentages(self):
@@ -316,18 +364,10 @@ class Bake:
             # Total liquid ingredients
             total_liquid = sum(i.grams for i in self.ingredients if i.type == "liquid")
 
-            starter_water = 0
-            starter_grams = sum(i.grams for i in self.ingredients if i.type == "starter")
-            if starter_grams > 0:
-                if self.starter and self.starter.current_hydration:
-                    starter_hydration_ratio = self.starter.current_hydration / 100
-                else:
-                    starter_hydration_ratio = 100 / 100  # Assume 100% hydration if unknown (equal parts flour and water)
-                # Calculate water in starter: starter_flour = starter_grams / (1 + hydration%)
-                # Then: water = starter_flour * hydration%
-                starter_flour = starter_grams / (1 + starter_hydration_ratio)
-                starter_water = starter_flour * starter_hydration_ratio
-            return round(((total_liquid + starter_water) / self.total_flour) * 100, 1)
+            _, starter_water, _ = self.starter_percentages()
+            if starter_water:
+                total_liquid += starter_water
+            return round((total_liquid / self.total_flour) * 100, 1)
         except (ValueError, ZeroDivisionError):
             return None
 
@@ -385,25 +425,38 @@ def group_ingredients_by_stage(ingredients: list[Ingredient]) -> list[Stage]:
     Groups ingredients by truncated timestamp (minute-level precision).
     Each group is cumulative — later timestamps include all prior ingredients —
     so that detect_stage sees the full accumulated dough at each point.
-    Returns a list of Stage objects, one per unique timestamp group.
+
+    Each stage closes when the next one begins.
+    Bulk fermentation opens when starter is added and closes when
+    a handling stage is explicitly added via add_handling_stage().
     """
     timestamps = sorted(set(i.timestamp[:16] for i in ingredients))
 
     stages = []
-    for ts in timestamps:
-        # Cumulative: all ingredients added at or before this timestamp
+    for idx, ts in enumerate(timestamps):
         group = [i for i in ingredients if i.timestamp[:16] <= ts]
         stage_name = detect_stage(group)
-        stages.append(Stage(name=stage_name, start_time=ts, ingredients=group))
 
-    # If starter is present, append bulk fermentation starting from starter addition
+        # End time is the start of the next timestamp group, if one exists
+        end_ts = timestamps[idx + 1] if idx + 1 < len(timestamps) else None
+
+        stage = Stage(name=stage_name, start_time=ts, end_time=end_ts, ingredients=group)
+
+        # Calculate duration if we have both times
+        if end_ts:
+            stage.duration = time_since(ts, end_ts)
+
+        stages.append(stage)
+
+    # Bulk fermentation — starts when starter is added, left open
+    # (closed explicitly by add_handling_stage)
     starter_ingredients = [i for i in ingredients if i.type == "starter"]
     if starter_ingredients:
         starter_timestamp = min(i.timestamp for i in starter_ingredients)
         stages.append(Stage(
             name="bulk fermentation",
             start_time=starter_timestamp,
-            ingredients=ingredients  # full ingredient list
+            ingredients=ingredients
         ))
 
     return stages

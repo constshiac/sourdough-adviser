@@ -3,3 +3,5 @@ anthropic
 fastapi
 uvicorn
 supabase
+dacite
+pydantic

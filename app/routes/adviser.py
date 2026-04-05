@@ -1,36 +1,22 @@
-import anthropic
-import json
-from app.utils.bake_utils import Bake
-from app.services.bake_storage import bake_to_dict
-from fastapi import APIRouter
+"""
+app/routes/adviser.py — AI advice endpoint.
+"""
 
-from app.core.config import ANTHROPIC_API_KEY
+from fastapi import APIRouter, HTTPException
 
-client = anthropic.Anthropic()
+from app.services.bake_storage import load_bake
+from app.services.bake_adviser import get_bake_advice
+from app.models.bake import AdviceResponse
+from app.routes.bakes import _load_or_404, _dict_to_bake
 
 router = APIRouter()
 
-def get_bake_advice(bake: Bake) -> str:
-    bake_dict = bake_to_dict(bake)
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        system="""You are an expert sourdough baker and coach. 
-You will be given a structured log of a sourdough bake in JSON format.
-Analyse the ingredients, timings, hydration, fold schedule, proof durations, and outcome scores.
-Give specific, actionable feedback — what went well, what to adjust next time.""",
-        messages=[
-            {
-                "role": "user",
-                "content": f"Here is my bake log:\n\n{json.dumps(bake_dict, indent=2, default=str)}"
-            }
-        ]
-    )
-    return message.content[0].text
+_DEV_USER_ID = "local"
 
 
-@router.get("/bakes/{bake_id}/advice")
-def get_advice(bake_id: str):
-    bake = load_bake(bake_id)
+@router.post("/{bake_id}", response_model=AdviceResponse, summary="Get AI advice for a bake")
+def advise_bake(bake_id: str):
+    data = _load_or_404(bake_id)
+    bake = _dict_to_bake(data)
     advice = get_bake_advice(bake)
-    return {"bake_id": bake_id, "advice": advice}
+    return AdviceResponse(bake_id=bake_id, advice=advice)
