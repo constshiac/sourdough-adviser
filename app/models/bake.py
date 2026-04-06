@@ -15,7 +15,7 @@ from typing import Optional, Literal
 
 class CreateBakeRequest(BaseModel):
     recipe_label: Optional[str] = None
-    room_temperature: Optional[float] = Field(None, ge=0, le=50)
+    room_temperature: Optional[float] = Field(None, ge=0, le=40)
 
 class IngredientRequest(BaseModel):
     name: str
