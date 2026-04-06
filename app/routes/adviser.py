@@ -2,7 +2,7 @@
 app/routes/adviser.py — AI advice endpoint.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.services.bake_storage import load_bake
 from app.services.bake_adviser import get_bake_advice
