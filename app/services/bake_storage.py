@@ -16,7 +16,6 @@ from app.utils.bake_utils import Bake
 
 LOCAL_FILE = "bake_history.json"
 _USE_LOCAL = not (SUPABASE_URL and SUPABASE_SERVICE_KEY)
-print(f"[storage] Using {'local JSON' if _USE_LOCAL else 'Supabase'}")
 
 _DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
