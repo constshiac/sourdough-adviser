@@ -8,7 +8,7 @@ from app.services.bake_storage import load_bake
 from app.services.bake_adviser import get_bake_advice
 from app.models.bake import AdviceResponse
 from app.routes.bakes import _load_or_404, _dict_to_bake
-from app.utils.rate_limiter import check_rate_limit
+from app.utils.rate_limit import check_rate_limit
 from app.core.config import _DEV_USER_ID
 
 router = APIRouter()
