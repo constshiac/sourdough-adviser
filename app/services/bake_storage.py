@@ -11,13 +11,11 @@ import os
 from dataclasses import asdict
 from typing import Optional
 
-from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY
+from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY, _DEV_USER_ID
 from app.utils.bake_utils import Bake
 
 LOCAL_FILE = "bake_history.json"
 _USE_LOCAL = not (SUPABASE_URL and SUPABASE_SERVICE_KEY)
-
-_DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 # ------------------------------------------------
