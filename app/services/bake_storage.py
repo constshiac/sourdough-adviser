@@ -99,7 +99,7 @@ def list_bakes(user_id: str = _DEV_USER_ID) -> list[dict]:
         return list(reversed(_load_local()))
     else:
         result = _get_supabase().table("bakes") \
-            .select("id, created_at, data->>recipe_label") \
+            .select("id, created_at, data->>recipe_label, data->>hydration, data->>total_flour, data->>inoculation, data->>salt_percentage, data->>outcome") \
             .eq("user_id", user_id) \
             .order("created_at", desc=True) \
             .execute()
