@@ -49,7 +49,7 @@ def _dict_to_bake(data: dict) -> Bake:
 # ------------------------------------------------
 # BAKE LIFECYCLE
  
-@router.post("/", summary="Start a new bake")
+@router.post("", summary="Start a new bake")
 def create_bake(body: CreateBakeRequest, request: Request):
     user_id = get_current_user(request)
     bake = Bake(recipe_label=body.recipe_label, room_temperature=body.room_temperature)
@@ -57,7 +57,7 @@ def create_bake(body: CreateBakeRequest, request: Request):
     return asdict(bake)
  
  
-@router.get("/", summary="List all bakes")
+@router.get("", summary="List all bakes")
 def get_bakes(request: Request):
     user_id = get_current_user(request)
     return list_bakes(user_id)
