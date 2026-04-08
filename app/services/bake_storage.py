@@ -55,7 +55,6 @@ def _save_local(history: list[dict]) -> None:
 def save_bake(bake: Bake, user_id: str = _DEV_USER_ID) -> None:
     """Upsert a bake by ID."""
     bake_dict = bake_to_dict(bake)
-    print(f"DEBUG save_bake: _USE_LOCAL={_USE_LOCAL}, user_id={user_id}, bake_id={bake.id}")
 
     if _USE_LOCAL:
         history = _load_local()

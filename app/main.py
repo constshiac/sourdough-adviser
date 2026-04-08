@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import bakes, adviser
 
-app = FastAPI(title="Sourdough Adviser", version="1.0.0")
+app = FastAPI(title="Sourdough Adviser", version="1.0.0", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,
