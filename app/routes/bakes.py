@@ -2,13 +2,14 @@
 app/routes/bakes.py — All bake CRUD and logging endpoints.
  
 Each route loads the bake, calls a service function, saves, and returns the result.
-Auth is stubbed with a default user_id for now — replaced with real JWT auth
-when Supabase auth is wired up in Phase 2.
+Auth uses Supabase JWT verification via get_current_user().
+Falls back to _DEV_USER_ID locally when no token is present.
 """
  
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from dataclasses import asdict
  
+from app.utils.auth import get_current_user
 from app.utils.bake_utils import Bake, BakeStage, Ingredient
 from app.services.bake_ops import (
     add_ingredients, add_fold, add_handling_stage,
@@ -19,16 +20,14 @@ from app.models.bake import (
     CreateBakeRequest, AddIngredientsRequest, AddFoldRequest,
     AddHandlingStageRequest, AddProofRequest, CloseProofRequest,
     BakeStageRequest, SetOutcomeRequest
-)
-from app.core.config import _DEV_USER_ID
- 
+) 
 router = APIRouter()
 
 
 
-def _load_or_404(bake_id: str) -> dict:
+def _load_or_404(bake_id: str, user_id: str) -> dict:
     """Load a bake dict or raise 404."""
-    data = load_bake(bake_id, _DEV_USER_ID)
+    data = load_bake(bake_id, user_id)
     if data is None:
         raise HTTPException(status_code=404, detail=f"Bake '{bake_id}' not found")
     return data
@@ -51,25 +50,29 @@ def _dict_to_bake(data: dict) -> Bake:
 # BAKE LIFECYCLE
  
 @router.post("/", summary="Start a new bake")
-def create_bake(body: CreateBakeRequest):
+def create_bake(body: CreateBakeRequest, request: Request):
+    user_id = get_current_user(request)
     bake = Bake(recipe_label=body.recipe_label, room_temperature=body.room_temperature)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
  
 @router.get("/", summary="List all bakes")
-def get_bakes():
-    return list_bakes(_DEV_USER_ID)
+def get_bakes(request: Request):
+    user_id = get_current_user(request)
+    return list_bakes(user_id)
  
  
 @router.get("/{bake_id}", summary="Get a single bake")
-def get_bake(bake_id: str):
-    return _load_or_404(bake_id)
+def get_bake(bake_id: str, request: Request):
+    user_id = get_current_user(request)
+    return _load_or_404(bake_id, user_id)
  
  
 @router.delete("/{bake_id}", summary="Delete a bake")
-def remove_bake(bake_id: str):
-    deleted = delete_bake(bake_id, _DEV_USER_ID)
+def remove_bake(bake_id: str, request: Request):
+    user_id = get_current_user(request)
+    deleted = delete_bake(bake_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Bake '{bake_id}' not found")
     return {"deleted": bake_id}
@@ -79,8 +82,9 @@ def remove_bake(bake_id: str):
 # INGREDIENTS
  
 @router.post("/{bake_id}/ingredients", summary="Add ingredients to a bake")
-def log_ingredients(bake_id: str, body: AddIngredientsRequest):
-    data = _load_or_404(bake_id)
+def log_ingredients(bake_id: str, body: AddIngredientsRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
  
     ingredients = [
@@ -94,7 +98,7 @@ def log_ingredients(bake_id: str, body: AddIngredientsRequest):
     ]
  
     bake = add_ingredients(bake, ingredients)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
 
 
@@ -102,11 +106,12 @@ def log_ingredients(bake_id: str, body: AddIngredientsRequest):
 # FOLDS
  
 @router.post("/{bake_id}/folds", summary="Log a fold")
-def log_fold(bake_id: str, body: AddFoldRequest):
-    data = _load_or_404(bake_id)
+def log_fold(bake_id: str, body: AddFoldRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
     bake = add_fold(bake, body.fold_type, body.fold_time, body.stage_name)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
 
 
@@ -114,11 +119,12 @@ def log_fold(bake_id: str, body: AddFoldRequest):
 # HANDLING STAGES
  
 @router.post("/{bake_id}/stages", summary="Add a handling stage (pre-shape or final shape)")
-def log_handling_stage(bake_id: str, body: AddHandlingStageRequest):
-    data = _load_or_404(bake_id)
+def log_handling_stage(bake_id: str, body: AddHandlingStageRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
     bake = add_handling_stage(bake, body.stage_name, body.start_time, body.notes)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
  
@@ -126,20 +132,22 @@ def log_handling_stage(bake_id: str, body: AddHandlingStageRequest):
 # PROOFS
  
 @router.post("/{bake_id}/proofs", summary="Add a proof")
-def log_proof(bake_id: str, body: AddProofRequest):
-    data = _load_or_404(bake_id)
+def log_proof(bake_id: str, body: AddProofRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
     bake = add_proof(bake, body.proof_type, body.start_time, body.end_time, body.temperature)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
  
 @router.post("/{bake_id}/proofs/close", summary="Close the current open proof")
-def log_close_proof(bake_id: str, body: CloseProofRequest):
-    data = _load_or_404(bake_id)
+def log_close_proof(bake_id: str, body: CloseProofRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
     bake = close_proof(bake, body.end_time)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
  
@@ -147,8 +155,9 @@ def log_close_proof(bake_id: str, body: CloseProofRequest):
 # OVEN STAGE
  
 @router.post("/{bake_id}/bake-stage", summary="Log the oven/bake stage")
-def log_bake_stage(bake_id: str, body: BakeStageRequest):
-    data = _load_or_404(bake_id)
+def log_bake_stage(bake_id: str, body: BakeStageRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
  
     stage = BakeStage(
@@ -171,7 +180,7 @@ def log_bake_stage(bake_id: str, body: BakeStageRequest):
     )
  
     bake = add_bake_stage(bake, stage)
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
  
@@ -179,8 +188,9 @@ def log_bake_stage(bake_id: str, body: BakeStageRequest):
 # OUTCOME
  
 @router.post("/{bake_id}/outcome", summary="Record bake outcome scores")
-def log_outcome(bake_id: str, body: SetOutcomeRequest):
-    data = _load_or_404(bake_id)
+def log_outcome(bake_id: str, body: SetOutcomeRequest, request: Request):
+    user_id = get_current_user(request)
+    data = _load_or_404(bake_id, user_id)
     bake = _dict_to_bake(data)
     bake = set_outcome(
         bake,
@@ -191,6 +201,6 @@ def log_outcome(bake_id: str, body: SetOutcomeRequest):
         overall=body.overall,
         notes=body.notes
     )
-    save_bake(bake, _DEV_USER_ID)
+    save_bake(bake, user_id)
     return asdict(bake)
  
