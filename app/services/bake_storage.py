@@ -22,8 +22,14 @@ _USE_LOCAL = not (SUPABASE_URL and SUPABASE_SERVICE_KEY)
 # SERIALISATION
 
 def bake_to_dict(bake: Bake) -> dict:
-    """Convert a Bake dataclass to a JSON-serialisable dict."""
-    return asdict(bake)
+    """Convert a Bake dataclass to a JSON-serialisable dict, including properties."""
+    bake_dict = asdict(bake)
+    # Add calculated properties
+    bake_dict['total_flour'] = bake.total_flour
+    bake_dict['hydration'] = bake.hydration
+    bake_dict['inoculation'] = bake.inoculation
+    bake_dict['salt_percentage'] = bake.salt_percentage
+    return bake_dict
 
 
 # ------------------------------------------------
