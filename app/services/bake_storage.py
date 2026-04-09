@@ -93,17 +93,58 @@ def load_bake(bake_id: str, user_id: str = _DEV_USER_ID) -> Optional[dict]:
         return result.data["data"] if result.data else None
 
 
+def _get_bake_status(row: dict) -> str:
+    import json
+
+    stages = row.get("stages")
+    if isinstance(stages, str):
+        stages = json.loads(stages)
+    
+    def _get_stage_by_names(stages: list[dict], stage_name: str) -> dict:
+        return next((s for s in stages if s.get('name') == stage_name), None)
+
+    if not stages:
+        return "not started"
+
+    bake_stage = _get_stage_by_name(stages, "bake")
+    if bake_stage:
+        bake_completed = self.bake_stage.end_time is not None
+        if bake_completed:
+            return "completed"
+        else:
+            return "baking"
+        
+    final_proof = _get_stage_by_name(stages, "final proof")
+    if final_proof:
+        if final_proof.proofs:
+            proof_type = str(final_proof.proofs[-1].type)
+        else:
+            proof_type = "proof"
+        return proof_type + "ing"
+
+    bulk_fermentation = _get_stage_by_name(stages, "bulk fermentation")
+    if bulk_fermentaion:
+        return "bulk fermentation"
+
+    return self.stages[-1].name
+
+
+def _summarise_bake(row: dict) -> dict:
+    row['status'] = _get_bake_status(row)
+    return row
+
+
 def list_bakes(user_id: str = _DEV_USER_ID) -> list[dict]:
     """Return all bakes, most recent first."""
     if _USE_LOCAL:
         return list(reversed(_load_local()))
     else:
         result = _get_supabase().table("bakes") \
-            .select("id, created_at, data->>recipe_label, data->>hydration, data->>total_flour, data->>inoculation, data->>salt_percentage, data->>outcome") \
+            .select("id, created_at, data->>recipe_label, data->>hydration, data->>total_flour, data->>inoculation, data->>salt_percentage, data->'outcome'->>'overall', data->>stages") \
             .eq("user_id", user_id) \
             .order("created_at", desc=True) \
             .execute()
-        return result.data
+        return [_summarise_bake(row) for row in result.data]
 
 
 def delete_bake(bake_id: str, user_id: str = _DEV_USER_ID) -> bool:
