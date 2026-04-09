@@ -95,6 +95,7 @@ def load_bake(bake_id: str, user_id: str = _DEV_USER_ID) -> Optional[dict]:
 
 def _get_bake_status(row: dict) -> str:
     import json
+    from datetime import datetime
 
     stages = row.get("stages")
     if isinstance(stages, str):
@@ -106,9 +107,12 @@ def _get_bake_status(row: dict) -> str:
     if not stages:
         return "not started"
 
-    bake_stage = _get_stage_by_name(stages, "bake")
+    bake_stage = row.get("bake_stage")
+    if isinstance(bake_stage, str):
+        bake_stage = json.loads(bake_stage)
     if bake_stage:
-        bake_completed = self.bake_stage.end_time is not None
+        bake_end = bake_stage.get('end_time')
+        bake_completed = bake_end is not None and datetime.fromisoformat(bake_end) < datetime.now()
         if bake_completed:
             return "completed"
         else:
@@ -136,6 +140,7 @@ def _get_bake_status(row: dict) -> str:
 def _summarise_bake(row: dict) -> dict:
     row['status'] = _get_bake_status(row)
     del row['stages']
+    del row['bake_stage']
     return row
 
 
@@ -145,7 +150,7 @@ def list_bakes(user_id: str = _DEV_USER_ID) -> list[dict]:
         return list(reversed(_load_local()))
     else:
         result = _get_supabase().table("bakes") \
-            .select("id, created_at, data->>recipe_label, data->>hydration, data->>total_flour, data->>inoculation, data->>salt_percentage, data->'outcome'->>'overall', data->>stages") \
+            .select("id, created_at, data->>recipe_label, data->>hydration, data->>total_flour, data->>inoculation, data->>salt_percentage, data->'outcome'->>'overall', data->>stages, data->>bake_stage") \
             .eq("user_id", user_id) \
             .order("created_at", desc=True) \
             .execute()
