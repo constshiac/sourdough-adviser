@@ -3,6 +3,12 @@ from typing import Optional, Literal
 from datetime import datetime, timedelta
 
 
+OUTCOME_MIN = 1
+OUTCOME_MAX = 10
+TEMP_MIN = 0
+TEMP_MAX = 300
+
+
 # ------------------------------------------------
 # DURATION HELPERS
 
@@ -275,7 +281,7 @@ class BakeStage:
 
 @dataclass
 class BakeOutcome:
-    """Baking outcome scores (1-5) and notes."""
+    """Baking outcome scores (OUTCOME_MIN-OUTCOME_MAX) and notes."""
     oven_spring: Optional[float] = None
     crumb: Optional[float] = None
     crust: Optional[float] = None
@@ -286,8 +292,8 @@ class BakeOutcome:
     def __post_init__(self):
         for field_name in ['oven_spring', 'crumb', 'crust', 'flavour', 'overall']:
             value = getattr(self, field_name, None)
-            if value is not None and (value < 1 or value > 5):
-                raise ValueError(f"{field_name} score must be between 1 and 5, got {value}")
+            if value is not None and (value < OUTCOME_MIN or value > OUTCOME_MAX):
+                raise ValueError(f"{field_name} score must be between {OUTCOME_MIN} and {OUTCOME_MAX}, got {value}")
         
         if not self.overall and any([self.oven_spring, self.crumb, self.crust, self.flavour]):
             # If overall score is missing but other scores are present, calculate average
