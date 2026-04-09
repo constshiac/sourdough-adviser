@@ -8,6 +8,8 @@ They are separate from the internal dataclasses in bake_utils.py.
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 
+from app.utils.bake_utils import OUTCOME_MIN, OUTCOME_MAX, TEMP_MIN, TEMP_MAX
+
 
 # ------------------------------------------------
 # REQUEST MODELS (what the API receives)
@@ -15,7 +17,7 @@ from typing import Optional, Literal
 
 class CreateBakeRequest(BaseModel):
     recipe_label: Optional[str] = None
-    room_temperature: Optional[float] = Field(None, ge=0, le=40)
+    room_temperature: Optional[float] = Field(None, ge=TEMP_MIN, le=TEMP_MAX)
 
 class IngredientRequest(BaseModel):
     name: str
@@ -44,7 +46,7 @@ class AddProofRequest(BaseModel):
     proof_type: Literal["cold", "warm"]
     start_time: Optional[str] = None
     end_time: Optional[str] = None
-    temperature: Optional[float] = Field(None, ge=0, le=300)
+    temperature: Optional[float] = Field(None, ge=TEMP_MIN, le=TEMP_MAX)
  
  
 class CloseProofRequest(BaseModel):
@@ -61,21 +63,21 @@ class BakeStageRequest(BaseModel):
     notes: Optional[str] = None
     preheat_time: Optional[str] = None
     preheat_duration: Optional[str] = None
-    preheat_temperature: Optional[float] = Field(None, ge=0, le=300)
+    preheat_temperature: Optional[float] = Field(None, ge=TEMP_MIN, le=TEMP_MAX)
     steam_time: Optional[str] = None
     steam_duration: Optional[str] = None
-    steam_temperature: Optional[str] = Field(None, ge=0, le=300)
+    steam_temperature: Optional[str] = Field(None, ge=TEMP_MIN, le=TEMP_MAX)
     open_time: Optional[str] = None
     open_duration: Optional[str] = None
-    open_temperature: Optional[float] = Field(None, ge=0, le=300)
+    open_temperature: Optional[float] = Field(None, ge=TEMP_MIN, le=TEMP_MAX)
  
- 
+
 class SetOutcomeRequest(BaseModel):
-    oven_spring: Optional[float] = Field(None, ge=1, le=5)
-    crumb: Optional[float] = Field(None, ge=1, le=5)
-    crust: Optional[float] = Field(None, ge=1, le=5)
-    flavour: Optional[float] = Field(None, ge=1, le=5)
-    overall: Optional[float] = Field(None, ge=1, le=5)
+    oven_spring: Optional[float] = Field(None, ge=OUTCOME_MIN, le=OUTCOME_MAX)
+    crumb: Optional[float] = Field(None, ge=OUTCOME_MIN, le=OUTCOME_MAX)
+    crust: Optional[float] = Field(None, ge=OUTCOME_MIN, le=OUTCOME_MAX)
+    flavour: Optional[float] = Field(None, ge=OUTCOME_MIN, le=OUTCOME_MAX)
+    overall: Optional[float] = Field(None, ge=OUTCOME_MIN, le=OUTCOME_MAX)
     notes: Optional[str] = None
  
  
