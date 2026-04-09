@@ -100,7 +100,7 @@ def _get_bake_status(row: dict) -> str:
     if isinstance(stages, str):
         stages = json.loads(stages)
     
-    def _get_stage_by_names(stages: list[dict], stage_name: str) -> dict:
+    def _get_stage_by_name(stages: list[dict], stage_name: str) -> dict:
         return next((s for s in stages if s.get('name') == stage_name), None)
 
     if not stages:
@@ -116,21 +116,26 @@ def _get_bake_status(row: dict) -> str:
         
     final_proof = _get_stage_by_name(stages, "final proof")
     if final_proof:
-        if final_proof.proofs:
-            proof_type = str(final_proof.proofs[-1].type)
+        if final_proof.get('proofs'):
+            proofs = final_proof.get('proofs',[])
+            if proofs:
+                proof_type = proofs[-1].get('type')
         else:
             proof_type = "proof"
-        return proof_type + "ing"
+        
+        if proof_type:
+            return proof_type + " proofing"
 
     bulk_fermentation = _get_stage_by_name(stages, "bulk fermentation")
-    if bulk_fermentaion:
+    if bulk_fermentation:
         return "bulk fermentation"
 
-    return self.stages[-1].name
+    return stages[-1].get('name')
 
 
 def _summarise_bake(row: dict) -> dict:
     row['status'] = _get_bake_status(row)
+    del row['stages']
     return row
 
 
